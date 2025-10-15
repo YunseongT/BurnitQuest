@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3단원 연소와 소화 단원평가 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            touch-action: manipulation;
+        }
+        .game-bg {
+            background: linear-gradient(to bottom, #FFB75E, #ED8F03); /* 주황색 계열 그라데이션 */
+            transition: background 1s ease;
+        }
+        .game-card, .form-card, .results-card {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .option-btn { transition: all 0.3s ease; }
+        .option-btn:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .option-btn.correct { background-color: #2ecc71; color: white; transform: scale(1.05); }
+        .option-btn.incorrect { background-color: #e74c3c; color: white; }
+        .option-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .achievement-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-weight: 700;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .badge-earned { background-color: #f39c12; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .badge-not-earned { background-color: #bdc3c7; }
+        #tip-modal {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .input-field {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #D1D5DB;
+            background-color: #F9FAFB;
+        }
+    </style>
+</head>
+<body class="game-bg">
+
+    <!-- 시작 화면 -->
+    <div id="start-screen" class="min-h-screen w-full flex items-center justify-center p-4">
+        <div class="form-card w-full max-w-md rounded-2xl p-8 shadow-lg text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">연소와 소화 탐험</h1>
+            <p class="text-gray-600 mb-6">3단원에서 배운 내용을 확인하고 결과를 저장해보세요!</p>
+            <form id="student-info-form" class="space-y-4 text-left">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="grade" class="block text-sm font-medium text-gray-700">학년</label>
+                        <input type="number" id="grade" class="input-field" required>
+                    </div>
+                    <div>
+                        <label for="classNum" class="block text-sm font-medium text-gray-700">반</label>
+                        <input type="number" id="classNum" class="input-field" required>
+                    </div>
+                </div>
+                <div>
+                    <label for="stdNumber" class="block text-sm font-medium text-gray-700">번호</label>
+                    <input type="number" id="stdNumber" class="input-field" required>
+                </div>
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700">이름</label>
+                    <input type="text" id="name" class="input-field" required>
+                </div>
+                 <p id="form-error" class="text-red-500 text-sm hidden">모든 정보를 입력해주세요.</p>
+                <button type="submit" id="start-game-btn" class="w-full bg-orange-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-orange-600 transition-transform duration-200 hover:scale-105">
+                    평가 시작하기
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 게임 화면 -->
+    <div id="game-screen" class="hidden min-h-screen w-full flex items-center justify-center p-4 relative">
+        <div class="game-card w-full max-w-3xl rounded-2xl p-6 md:p-8 shadow-lg text-center">
+            <div class="flex justify-between items-center mb-4">
+                 <div class="flex gap-3">
+                    <span class="text-3xl cursor-pointer" onclick="showInfo('condition')">🔥</span>
+                    <span class="text-3xl cursor-pointer" onclick="showInfo('product')">💨</span>
+                    <span class="text-3xl cursor-pointer" onclick="showInfo('extinguish')">💧</span>
+                </div>
+                <div id="progress" class="font-bold text-gray-700"></div>
+                <div id="main-icon" class="text-5xl cursor-pointer transition-transform duration-300 hover:scale-110" onclick="showTip()">🧯</div>
+            </div>
+            
+            <p id="achievement-standard" class="text-sm font-bold text-orange-600 mb-2"></p>
+            <h2 id="question" class="text-xl md:text-2xl font-bold text-gray-800 mb-6 min-h-[6rem] flex items-center justify-center"></h2>
+            <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            <p id="explanation" class="mt-4 text-gray-700 bg-orange-100 p-3 rounded-lg min-h-[5rem] flex items-center justify-center"></p>
+            <button id="next-btn" class="hidden mt-6 w-full bg-orange-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-orange-600">다음 문제</button>
+        </div>
+        <!-- 팁 모달 -->
+        <div id="tip-modal" class="hidden absolute top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center p-4 opacity-0 -translate-y-4">
+            <div class="bg-white p-6 rounded-lg shadow-xl max-w-md text-center">
+                <h3 class="text-xl font-bold mb-2">핵심 팁! 💡</h3>
+                <p id="tip-content"></p>
+                <button onclick="closeTip()" class="mt-4 bg-gray-300 px-4 py-2 rounded-lg">닫기</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 결과 화면 -->
+    <div id="results-screen" class="hidden min-h-screen w-full flex items-center justify-center p-4">
+        <div class="results-card w-full max-w-2xl rounded-2xl p-8 shadow-lg text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">단원평가 결과 보고서</h1>
+            <div id="achievements-container" class="space-y-4 my-6"></div>
+            <p id="result-message" class="font-bold text-xl my-4"></p>
+            <button id="restart-btn" class="w-full bg-orange-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-orange-600">처음부터 다시하기</button>
+        </div>
+    </div>
+
+    <script>
+        const allQuestions = [
+            // 연소의 조건
+            { standard: "combustion-conditions", question: "물질이 타는 현상인 '연소'가 일어나기 위해 반드시 필요한 조건이 아닌 것은 무엇인가요?", options: ["탈 물질", "산소", "발화점 이상의 온도", "이산화 탄소"], answer: 3, explanation: "연소의 3요소는 탈 물질, 산소, 발화점 이상의 온도입니다. 이산화 탄소는 불을 끄는 데 사용되는 기체입니다." },
+            { standard: "combustion-conditions", question: "촛불을 켜고 집기병으로 덮었을 때, 촛불이 곧 꺼지는 이유는 무엇인가요?", options: ["탈 물질이 부족해서", "산소가 부족해서", "온도가 너무 낮아져서", "심지가 물에 젖어서"], answer: 1, explanation: "밀폐된 공간에서는 연소에 필요한 산소가 금방 소모되기 때문에 불이 꺼집니다." },
+            { standard: "combustion-conditions", question: "성냥을 그을 때 머리 부분을 마찰시키는 이유는 무엇과 가장 관련이 깊을까요?", options: ["산소를 공급하기 위해", "탈 물질을 제공하기 위해", "발화점 이상으로 온도를 높이기 위해", "이산화 탄소를 제거하기 위해"], answer: 2, explanation: "마찰열을 이용해 성냥 머리의 온도를 발화점 이상으로 높여 불이 붙게 하는 것입니다." },
+            { standard: "combustion-conditions", question: "알코올 램프의 불꽃 크기를 조절하는 심지의 역할은 연소의 조건 중 무엇을 조절하는 것일까요?", options: ["산소의 양", "탈 물질의 양", "온도", "생성 물질의 양"], answer: 1, explanation: "심지는 알코올(탈 물질)이 공급되는 양을 조절하여 불꽃의 크기를 변화시키는 역할을 합니다." },
+
+            // 연소 후 생성 물질
+            { standard: "combustion-products", question: "양초가 연소할 때 집기병 안쪽에 푸른색 염화 코발트 종이를 대면 붉게 변합니다. 이를 통해 알 수 있는 생성 물질은 무엇인가요?", options: ["산소", "수소", "물", "이산화 탄소"], answer: 2, explanation: "푸른색 염화 코발트 종이는 물과 만나면 붉은색으로 변하는 성질이 있습니다." },
+            { standard: "combustion-products", question: "촛불이 타고 난 집기병에 석회수를 넣고 흔들면 뿌옇게 흐려집니다. 이 현상으로 알 수 있는 생성 물질은 무엇인가요?", options: ["산소", "질소", "물", "이산화 탄소"], answer: 3, explanation: "석회수는 이산화 탄소를 만나면 뿌옇게 흐려지는 반응을 하므로, 이산화 탄소가 생성되었음을 알 수 있습니다." },
+            { standard: "combustion-products", question: "나무, 종이, 양초와 같이 탄소를 포함한 물질이 연소할 때 공통적으로 발생하는 기체는 무엇일까요?", options: ["산소", "수소", "이산화 탄소", "헬륨"], answer: 2, explanation: "탄소를 포함한 물질이 완전 연소하면 산소와 결합하여 이산화 탄소가 공통적으로 생성됩니다." },
+            
+            // 소화 방법과 화재 안전
+            { standard: "extinguishing-safety", question: "불이 난 곳에 물을 뿌리는 소화 방법은 연소의 조건 중 무엇을 제거하는 원리인가요?", options: ["탈 물질 제거", "산소 차단", "발화점 미만으로 온도 낮추기", "생성 물질 제거"], answer: 2, explanation: "물은 증발하면서 주변의 열을 빼앗아 타는 물질의 온도를 발화점 미만으로 낮추는 '냉각 소화'의 원리를 이용합니다." },
+            { standard: "extinguishing-safety", question: "모래나 담요를 덮어 불을 끄는 방법은 어떤 원리를 이용한 것인가요?", options: ["탈 물질 제거", "산소 공급 차단", "온도 낮추기", "압력 높이기"], answer: 1, explanation: "모래나 담요로 타는 물질을 덮으면 주변의 산소가 공급되는 것을 막아 불을 끄는 '질식 소화' 방법입니다." },
+            { standard: "extinguishing-safety", question: "산불이 번지는 것을 막기 위해 주변의 나무를 미리 베어내는 것은 어떤 소화 원리에 해당할까요?", options: ["냉각 소화", "질식 소화", "제거 소화", "화학 소화"], answer: 2, explanation: "불이 번져나갈 주변의 탈 물질(나무)을 미리 없애 더 이상 타지 못하게 하는 '제거 소화' 방법입니다." },
+            { standard: "extinguishing-safety", question: "다음 중 기름에 불이 붙었을 때 절대로 해서는 안 되는 행동은 무엇인가요?", options: ["젖은 수건으로 덮기", "소화기 사용하기", "물을 뿌리기", "냄비 뚜껑 덮기"], answer: 2, explanation: "뜨거운 기름에 물을 뿌리면 물이 급격히 끓어오르며 기름과 함께 사방으로 튀어 화재를 더 크게 만듭니다." },
+            { standard: "extinguishing-safety", question: "소화기를 사용할 때, 바람을 등지고 뿌리는 이유는 무엇일까요?", options: ["소화 약제가 더 멀리 나가게 하기 위해", "불꽃이 나에게 오는 것을 막기 위해", "소화기 소리를 줄이기 위해", "체온을 유지하기 위해"], answer: 1, explanation: "바람을 등지고 뿌려야 불꽃이나 연기가 자신에게 오는 것을 막고, 소화 약제가 효과적으로 불 쪽으로 날아가 안전하고 효율적으로 불을 끌 수 있습니다." },
+        ];
+
+        let shuffledQuestions = [];
+        let currentQuestionIndex = 0;
+        let studentInfo = {};
+        const achievements = {
+            'combustion-conditions': { name: "연소의 조건", correct: 0, total: 4, badge: false },
+            'combustion-products': { name: "연소 후 생성 물질", correct: 0, total: 3, badge: false },
+            'extinguishing-safety': { name: "소화와 화재 안전", correct: 0, total: 5, badge: false },
+        };
+
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const resultsScreen = document.getElementById('results-screen');
+        const progressEl = document.getElementById('progress');
+        const standardEl = document.getElementById('achievement-standard');
+        const questionEl = document.getElementById('question');
+        const optionsContainer = document.getElementById('options-container');
+        const explanationEl = document.getElementById('explanation');
+        const nextBtn = document.getElementById('next-btn');
+        const studentInfoForm = document.getElementById('student-info-form');
+        const formError = document.getElementById('form-error');
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function startGame() {
+            currentQuestionIndex = 0;
+            for (const key in achievements) {
+                achievements[key].correct = 0;
+                achievements[key].badge = false;
+            }
+            shuffledQuestions = shuffleArray([...allQuestions]);
+            startScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            loadQuestion();
+        }
+        
+        function loadQuestion() {
+            explanationEl.textContent = "";
+            explanationEl.classList.add('hidden');
+            nextBtn.classList.add('hidden');
+
+            const questionData = shuffledQuestions[currentQuestionIndex];
+            const standardKey = questionData.standard;
+
+            progressEl.textContent = `문제 ${currentQuestionIndex + 1} / ${shuffledQuestions.length}`;
+            standardEl.textContent = `[${achievements[standardKey].name}]`;
+            questionEl.textContent = questionData.question;
+
+            optionsContainer.innerHTML = '';
+            questionData.options.forEach((option, index) => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.classList.add('option-btn', 'w-full', 'bg-white', 'text-gray-700', 'font-semibold', 'py-3', 'px-4', 'rounded-lg', 'shadow-md', 'border', 'border-gray-200');
+                button.onclick = () => handleOptionClick(index);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        function handleOptionClick(selectedIndex) {
+            const questionData = shuffledQuestions[currentQuestionIndex];
+            const isCorrect = (selectedIndex === questionData.answer);
+            
+            Array.from(optionsContainer.children).forEach((btn, index) => {
+                btn.disabled = true;
+                if (index === questionData.answer) {
+                    btn.classList.add('correct');
+                } else if (index === selectedIndex) {
+                    btn.classList.add('incorrect');
+                }
+            });
+
+            if (isCorrect) {
+                achievements[questionData.standard].correct++;
+            }
+            
+            explanationEl.textContent = "해설: " + questionData.explanation;
+            explanationEl.classList.remove('hidden');
+            nextBtn.classList.remove('hidden');
+
+            if (currentQuestionIndex >= shuffledQuestions.length - 1) {
+                nextBtn.textContent = '결과 확인하기';
+            }
+        }
+        
+        function nextQuestion() {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < shuffledQuestions.length) {
+                loadQuestion();
+            } else {
+                showResults();
+            }
+        }
+        
+        function showResults() {
+            gameScreen.classList.add('hidden');
+            resultsScreen.classList.remove('hidden');
+            
+            const achievementsContainer = document.getElementById('achievements-container');
+            achievementsContainer.innerHTML = '';
+            let totalCorrect = 0;
+            
+            for (const key in achievements) {
+                const achievement = achievements[key];
+                const percentage = (achievement.total > 0) ? (achievement.correct / achievement.total) * 100 : 0;
+                totalCorrect += achievement.correct;
+                
+                if (percentage >= 70) {
+                    achievement.badge = true;
+                }
+
+                const resultEl = document.createElement('div');
+                resultEl.className = 'p-4 bg-gray-100 rounded-lg text-left';
+
+                let extraInfoHTML = '';
+                if (achievement.badge) {
+                    const compliments = ["최고의 소방관!", "연소의 원리를 완벽히 이해했네요!", "훌륭한 안전 지킴이!"];
+                    const compliment = compliments[Math.floor(Math.random() * compliments.length)];
+                    extraInfoHTML = `<p class="text-sm text-green-600 mt-2 font-semibold">🌟 ${compliment}</p>`;
+                } else {
+                    extraInfoHTML = `<p class="text-sm text-orange-700 mt-2">💡 <strong>학습 팁:</strong> ${tips[key]}</p>`;
+                }
+
+                resultEl.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-gray-800">${achievement.name}</p>
+                            <p class="text-sm text-gray-600">달성도: ${achievement.correct} / ${achievement.total} (${percentage.toFixed(0)}%)</p>
+                        </div>
+                        <span class="achievement-badge ${achievement.badge ? 'badge-earned' : 'badge-not-earned'}">
+                            ${achievement.badge ? '🏅 달성' : '미달성'}
+                        </span>
+                    </div>
+                    ${extraInfoHTML}
+                `;
+                achievementsContainer.appendChild(resultEl);
+            }
+            
+            const totalPercentage = (allQuestions.length > 0) ? (totalCorrect / allQuestions.length) * 100 : 0;
+            const resultMessage = document.getElementById('result-message');
+            if (totalPercentage >= 80) {
+                resultMessage.textContent = "훌륭해요! 당신은 최고의 연소와 소화 탐험가입니다! 🏆";
+                resultMessage.className = "font-bold text-xl my-4 text-green-600";
+            } else {
+                resultMessage.textContent = "조금 아쉽네요! 다시 도전해서 모든 배지를 모아보세요!";
+                resultMessage.className = "font-bold text-xl my-4 text-orange-500";
+            }
+            
+            saveResultToSheet();
+        }
+
+        async function saveResultToSheet() {
+            // !!! 중요 !!! 아래 URL을 새로 만든 Google Apps Script 웹 앱 URL로 바꾸세요.
+            const SCRIPT_URL = '여기에_새로_배포한_스크립트_URL을_붙여넣으세요';
+            
+            if (SCRIPT_URL.includes('여기에')) {
+                console.log('Google Apps Script URL이 설정되지 않았습니다. 결과가 저장되지 않습니다.');
+                alert('결과를 저장하기 위한 구글 시트 연동 설정이 필요합니다.');
+                return;
+            }
+
+            const totalScore = Object.values(achievements).reduce((sum, ach) => sum + ach.correct, 0);
+            const totalProblems = allQuestions.length;
+
+            const dataToSend = {
+                timestamp: new Date().toLocaleString(),
+                grade: studentInfo.grade,
+                classNum: studentInfo.classNum,
+                stdNumber: studentInfo.stdNumber,
+                name: studentInfo.name,
+                totalScore: `${totalScore}/${totalProblems}`,
+                score_conditions: `${achievements['combustion-conditions'].correct}/${achievements['combustion-conditions'].total}`,
+                badge_conditions: achievements['combustion-conditions'].badge ? 'O' : 'X',
+                score_products: `${achievements['combustion-products'].correct}/${achievements['combustion-products'].total}`,
+                badge_products: achievements['combustion-products'].badge ? 'O' : 'X',
+                score_safety: `${achievements['extinguishing-safety'].correct}/${achievements['extinguishing-safety'].total}`,
+                badge_safety: achievements['extinguishing-safety'].badge ? 'O' : 'X',
+            };
+
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataToSend)
+                });
+                console.log("결과가 Google Sheet에 성공적으로 저장되었습니다.");
+            } catch (error) {
+                console.error("결과 저장 중 에러 발생:", error);
+                alert("결과 저장에 실패했습니다. 인터넷 연결을 확인해주세요.");
+            }
+        }
+
+        const tips = {
+            "combustion-conditions": "불이 나려면 '탈 물질', '산소', '높은 온도' 세 가지가 모두 필요해요! 이 중 하나만 없애도 불은 꺼진답니다.",
+            "combustion-products": "양초가 타면 눈에 보이지 않는 '물'과 '이산화 탄소'가 생겨요. 각각 푸른색 염화 코발트 종이와 석회수로 확인할 수 있어요.",
+            "extinguishing-safety": "소화는 연소의 세 가지 조건 중 하나를 없애는 원리에요. 물(온도 낮추기), 모래(산소 막기), 산불 길 내기(탈 물질 없애기)를 생각해보세요!"
+        };
+        
+        function showTip() {
+            if (currentQuestionIndex >= shuffledQuestions.length) return;
+            const currentStandard = shuffledQuestions[currentQuestionIndex].standard;
+            document.getElementById('tip-content').textContent = tips[currentStandard];
+            const modal = document.getElementById('tip-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0', '-translate-y-4'), 10);
+        }
+
+        function closeTip() {
+            const modal = document.getElementById('tip-modal');
+            modal.classList.add('opacity-0', '-translate-y-4');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function showInfo(topic) {
+            const infos = {
+                condition: "🔥 연소 조건: 탈 물질, 산소, 발화점 이상의 온도가 모두 필요해요.",
+                product: "💨 연소 생성물: 촛불이 타면 물과 이산화 탄소가 생겨요.",
+                extinguish: "💧 소화 원리: 연소 조건 중 하나 이상을 없애는 것이에요."
+            };
+            alert(infos[topic]);
+        }
+
+        studentInfoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const grade = document.getElementById('grade').value;
+            const classNum = document.getElementById('classNum').value;
+            const stdNumber = document.getElementById('stdNumber').value;
+            const name = document.getElementById('name').value;
+
+            if (grade && classNum && stdNumber && name) {
+                studentInfo = { grade, classNum, stdNumber, name };
+                formError.classList.add('hidden');
+                startGame();
+            } else {
+                formError.classList.remove('hidden');
+            }
+        });
+
+        nextBtn.addEventListener('click', nextQuestion);
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            resultsScreen.classList.add('hidden');
+            studentInfoForm.reset(); // 학생 정보 초기화
+            startScreen.classList.remove('hidden');
+            nextBtn.textContent = '다음 문제';
+        });
+    </script>
+</body>
+</html>
